@@ -1,6 +1,6 @@
 <RevitAddIns>
 	<AddIn Type="Application">
-		<name>DEAXO Make Parallel</name>
+		<Name>DEAXO Make Parallel</Name>
 		<Assembly>Deaxo.MakeParallel.dll</Assembly>
 		<AddInId>8D957F6E-63C4-4E3F-B9F6-AA40C7E8F9B7</AddInId>
 		<FullClassName>Deaxo.MakeParallel.MakeParallelApp</FullClassName>

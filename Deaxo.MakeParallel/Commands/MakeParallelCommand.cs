@@ -18,14 +18,12 @@ namespace Deaxo.MakeParallel.Commands
 
             try
             {
-                // Step 1: Select reference element
-                TaskDialog.Show("DEAXO - Make Parallel", "Pick reference element (first element)");
-
+                // Step 1: Select reference element (no dialog - just status bar)
                 Reference reference1;
                 Element element1;
                 try
                 {
-                    reference1 = uidoc.Selection.PickObject(ObjectType.Element, "Pick reference element");
+                    reference1 = uidoc.Selection.PickObject(ObjectType.Element, "Pick reference element (first element)");
                     element1 = doc.GetElement(reference1);
                 }
                 catch (OperationCanceledException)
@@ -39,14 +37,12 @@ namespace Deaxo.MakeParallel.Commands
                     return Result.Failed;
                 }
 
-                // Step 2: Select target element
-                TaskDialog.Show("DEAXO - Make Parallel", "Pick target element (element to rotate)");
-
+                // Step 2: Select target element (no dialog - just status bar)
                 Reference reference2;
                 Element element2;
                 try
                 {
-                    reference2 = uidoc.Selection.PickObject(ObjectType.Element, "Pick target element");
+                    reference2 = uidoc.Selection.PickObject(ObjectType.Element, "Pick target element (element to rotate)");
                     element2 = doc.GetElement(reference2);
                 }
                 catch (OperationCanceledException)
@@ -60,31 +56,22 @@ namespace Deaxo.MakeParallel.Commands
                     return Result.Failed;
                 }
 
-                // Step 3: Get directions using enhanced element analysis
+                // Step 3: Get directions and perform rotation in one transaction
                 var analyzer = new ElementDirectionAnalyzer(doc);
 
                 var direction1 = analyzer.GetDirection(element1);
                 var direction2 = analyzer.GetDirection(element2);
 
-                if (direction1 == null)
+                if (direction1 == null || direction2 == null)
                 {
                     TaskDialog.Show("Unsupported Element",
-                        $"Cannot determine direction for reference element of type '{element1.GetType().Name}'. " +
-                        "Supported elements include: Grids, Reference Planes, Lines, Family Instances, " +
+                        "Cannot determine direction for one or both selected elements.\n\n" +
+                        "Supported elements: Grids, Reference Planes, Lines, Family Instances, " +
                         "MEP elements (pipes, ducts, cable trays, conduits), and Section views.");
                     return Result.Failed;
                 }
 
-                if (direction2 == null)
-                {
-                    TaskDialog.Show("Unsupported Element",
-                        $"Cannot determine direction for target element of type '{element2.GetType().Name}'. " +
-                        "Supported elements include: Grids, Reference Planes, Lines, Family Instances, " +
-                        "MEP elements (pipes, ducts, cable trays, conduits), and Section views.");
-                    return Result.Failed;
-                }
-
-                // Step 4: Calculate angle and rotation axis
+                // Step 4: Calculate and perform rotation
                 var calculator = new ParallelCalculator();
                 var rotationData = calculator.CalculateRotation(direction1, direction2, element2);
 
@@ -94,7 +81,7 @@ namespace Deaxo.MakeParallel.Commands
                     return Result.Succeeded;
                 }
 
-                // Step 5: Handle special cases (elevation markers)
+                // Handle special cases (elevation markers)
                 Element elementToRotate = element2;
                 if (analyzer.IsElevationView(element2))
                 {
@@ -105,7 +92,7 @@ namespace Deaxo.MakeParallel.Commands
                     }
                 }
 
-                // Step 6: Perform rotation
+                // Perform rotation
                 using (Transaction t = new Transaction(doc, "DEAXO - Make Parallel"))
                 {
                     t.Start();
@@ -116,24 +103,21 @@ namespace Deaxo.MakeParallel.Commands
                         {
                             elementToRotate.Location.Rotate(rotationData.Axis, rotationData.Angle);
 
+                            // Single success message with rotation info
                             TaskDialog.Show("DEAXO - Make Parallel",
-                                $"Successfully made elements parallel.\n" +
-                                $"Rotation angle: {Math.Abs(rotationData.Angle * 180 / Math.PI):F2}°");
+                                $"Elements made parallel.\nRotation: {Math.Abs(rotationData.Angle * 180 / Math.PI):F1}°");
                         }
                         else
                         {
-                            TaskDialog.Show("Error",
-                                "Cannot rotate this element - it doesn't have a location property. " +
-                                "This might be a system family or non-moveable element.");
+                            TaskDialog.Show("Error", "Cannot rotate this element - no location property.");
                             t.RollBack();
                             return Result.Failed;
                         }
                     }
                     catch (Exception ex)
                     {
-                        TaskDialog.Show("Rotation Error",
-                            $"Failed to rotate element: {ex.Message}\n\n" +
-                            "This element might be constrained, locked, or not allowed to rotate.");
+                        TaskDialog.Show("Rotation Failed",
+                            $"Could not rotate element: {ex.Message}\n\nElement may be constrained or locked.");
                         t.RollBack();
                         return Result.Failed;
                     }
@@ -146,7 +130,7 @@ namespace Deaxo.MakeParallel.Commands
             catch (Exception ex)
             {
                 message = ex.Message;
-                TaskDialog.Show("DEAXO - Make Parallel Error", $"An error occurred: {ex.Message}");
+                TaskDialog.Show("Error", $"An error occurred: {ex.Message}");
                 return Result.Failed;
             }
         }
